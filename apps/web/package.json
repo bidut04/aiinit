@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/clerk-react": "^5.48.1",
+    "@clerk/nextjs": "^6.32.2",
     "@workspace/math": "workspace:*",
     "@workspace/ui": "workspace:*",
     "lucide-react": "^0.475.0",
