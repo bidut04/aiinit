@@ -1,8 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs"; // use nextjs version
 import "@workspace/ui/globals.css";
 import { Providers } from "@/components/providers";
-
+import { Toaster } from 'react-hot-toast';
+import { ThemeProvider } from "@/components/theme-provider";
 const fontSans = Geist({
   subsets: ["latin"],
   variable: "--font-sans",
@@ -23,9 +23,14 @@ export default function RootLayout({
       <body
         className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased`}
       >
-        <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
-          <Providers>{children}</Providers>
-        </ClerkProvider>
+        <Providers>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange >
+ {children}
+          </ThemeProvider>
+         
+          
+          </Providers>
+        <Toaster position="top-right" />
       </body>
     </html>
   );

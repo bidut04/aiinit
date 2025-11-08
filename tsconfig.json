@@ -1,4 +1,26 @@
 {
-  "extends": "@workspace/typescript-config/base.json"
+  "extends": "@workspace/typescript-config/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "types": ["node"],
+    "paths": {
+      "@workspace/auth": ["packages/auth/src/index.ts"],
+      "@workspace/auth/*": ["packages/auth/src/*"],
+      "@workspace/cloudinary": ["packages/cloudinary/dist/index.d.ts"],
+      "@workspace/cloudinary/*": ["packages/cloudinary/dist/*"],
+      "@workspace/database": ["packages/database/dist/index.d.ts"],
+      "@workspace/database/*": ["packages/database/dist/*"],
+      "@workspace/lib": ["packages/lib/src/index.d.ts"],
+      "@workspace/lib/*": ["packages/lib/src/*"],
+      "@workspace/ui": ["packages/ui/dist/index.d.ts"],
+      "@workspace/ui/*": ["packages/ui/dist/*"]
+    }
+  },
+  "references": [
+    { "path": "packages/auth" },
+    { "path": "packages/cloudinary" },
+    { "path": "packages/database" },
+    { "path": "packages/lib" },
+    { "path": "packages/ui" }
+  ]
 }
-

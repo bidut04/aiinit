@@ -1,0 +1,5 @@
+export { getSuperAdminOTPTemplate } from './super-admin-otp'
+export { getRestaurantOwnerOTPTemplate } from './restaurant-owner-otp'
+export { getCustomerOTPTemplate } from './customer-otp'
+export { getDeliveryBoyOTPTemplate } from './delivery-boy-otp'
+export { getRestaurantApplicationApprovedTemplate } from './application-approved'
