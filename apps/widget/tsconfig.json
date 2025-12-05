@@ -9,7 +9,9 @@
       "@workspace/ui": ["../../packages/ui/src/index.tsx"],
       "@workspace/ui/*": ["../../packages/ui/src/*"],
       "@workspace/database": ["../../packages/database/src"],
-      "@workspace/auth": ["../../packages/auth/src"]
+      "@workspace/auth": ["../../packages/auth/src"],
+      "@workspace/socket-client": ["../../packages/socket-client/src"],
+      "@workspace/socket-server": ["../../packages/socket-server/src"]
     },
     "plugins": [
       {

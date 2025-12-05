@@ -9,7 +9,7 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-     "./redis": {
+    "./redis": {
       "types": "./dist/redis.d.ts",
       "import": "./dist/redis.js"
     },
@@ -36,6 +36,7 @@
     "@workspace/database": "workspace:*",
     "ioredis": "^5.4.1",
     "nodemailer": "^6.9.7",
+    "query-string": "^9.3.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

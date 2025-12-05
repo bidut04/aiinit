@@ -279,13 +279,13 @@ const router = useRouter(); // ✅ Add this line at the top
                 Email Address {!formData.phone && '*'}
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-900" />
                 <input
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  className={`w-full pl-11 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  className={`w-full pl-11 pr-4 py-3 text-black border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
                     errors.email 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-orange-500'
@@ -298,20 +298,20 @@ const router = useRouter(); // ✅ Add this line at the top
               )}
             </div>
 
-            <div className="text-center text-sm text-gray-500">OR</div>
+            <div className="text-center text-sm text-gray-900">OR</div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
                 Phone Number {!formData.email && '*'}
               </label>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-900" />
                 <input
                   type="tel"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  className={`w-full pl-11 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  className={`w-full pl-11 pr-4 text-black py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
                     errors.phone 
                       ? 'border-red-300 focus:ring-red-500' 
                       : 'border-gray-300 focus:ring-orange-500'
@@ -338,7 +338,7 @@ const router = useRouter(); // ✅ Add this line at the top
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
-                      className={`w-full pl-11 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                      className={`w-full pl-11 text-black pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
                         errors.name 
                           ? 'border-red-300 focus:ring-red-500' 
                           : 'border-gray-300 focus:ring-orange-500'
@@ -362,7 +362,7 @@ const router = useRouter(); // ✅ Add this line at the top
                       name="aadharNumber"
                       value={formData.aadharNumber}
                       onChange={handleChange}
-                      className={`w-full pl-11 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                      className={`w-full pl-11 pr-4 py-3 text-black border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
                         errors.aadharNumber 
                           ? 'border-red-300 focus:ring-red-500' 
                           : 'border-gray-300 focus:ring-orange-500'
@@ -406,7 +406,7 @@ const router = useRouter(); // ✅ Add this line at the top
                 name="otp"
                 value={formData.otp}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 text-center text-2xl tracking-widest border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                className={`w-full px-4 py-3 text-center text-2xl tracking-widest border rounded-lg focus:outline-none focus:ring-2 transition-colors text-black ${
                   errors.otp 
                     ? 'border-red-300 focus:ring-red-500' 
                     : 'border-gray-300 focus:ring-orange-500'

@@ -11,13 +11,8 @@ export default async function Page() {
   if (!session?.user?.id) {
     redirect('/resturantOwnerLogin')
   }
-const restaurant=await db.restaurantOwner.findFirst({
-  where:
-    {userId:session?.user?.id},
-    select: { id: true }
-    
-  
-})
+
+
 
   return <DashboardClient />
 }

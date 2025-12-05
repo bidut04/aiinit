@@ -16,10 +16,17 @@ declare module "next-auth" {
     email: string | null
     name: string | null
     role: string
+    restaurantOwnerId?: string // ✅ ADDED
   }
 
   interface Session {
-    user: User
+    user: {
+      id: string
+      email: string | null
+      name: string | null
+      role: string
+      restaurantOwnerId?: string // ✅ ADDED
+    }
   }
 }
 
@@ -27,6 +34,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string
     role: string
+    restaurantOwnerId?: string // ✅ ADDED
   }
 }
 
@@ -98,14 +106,10 @@ export const authOptions: NextAuthOptions = {
             }
           })
 
-          if (!user) {
-            throw new Error('User not found after OTP verification')
-          }
-
           return {
             id: user.id,
-            email: user.email || null,
-            name: user.name || null,
+            email: user.email,
+            name: user.name,
             role: user.role
           }
         } catch (error) {
@@ -131,7 +135,6 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // Verify OTP
           const result = await verifyOTP({
             identifier: credentials.email,
             otp: credentials.otp,
@@ -142,7 +145,6 @@ export const authOptions: NextAuthOptions = {
             throw new Error(result.message)
           }
 
-          // Get super admin user
           const user = await prisma.user.findUnique({
             where: { email: credentials.email },
             include: { superAdminProfile: true }
@@ -152,7 +154,6 @@ export const authOptions: NextAuthOptions = {
             throw new Error('Super Admin not found')
           }
 
-          // Update last login
           await prisma.superAdminProfile.update({
             where: { userId: user.id },
             data: {
@@ -164,8 +165,8 @@ export const authOptions: NextAuthOptions = {
 
           return {
             id: user.id,
-            email: user.email || null,
-            name: user.name || null,
+            email: user.email,
+            name: user.name,
             role: user.role
           }
         } catch (error) {
@@ -178,14 +179,14 @@ export const authOptions: NextAuthOptions = {
     // ========================================
     // RESTAURANT OWNER - OTP Authentication
     // ========================================
-   CredentialsProvider({
+  CredentialsProvider({
   id: "restaurant-owner-otp",
   name: "Restaurant Owner OTP",
   credentials: {
     email: { label: "Email", type: "email" },
     phone: { label: "Phone", type: "text" },
     otp: { label: "OTP", type: "text" },
-    name: { label: "Name", type: "text" } // Frontend sends single name
+    name: { label: "Name", type: "text" }
   },
   async authorize(credentials) {
     if (!credentials?.otp) {
@@ -209,118 +210,147 @@ export const authOptions: NextAuthOptions = {
         throw new Error(result.message)
       }
 
-      // Split name into firstName and lastName
+      // Parse name
       const nameParts = (credentials.name || '').trim().split(' ')
       const firstName = nameParts[0] || ''
       const lastName = nameParts.slice(1).join(' ') || ''
 
+      // Build where clause for finding existing records
+      const whereClause = {
+        OR: [
+          credentials.email ? { email: credentials.email } : undefined,
+          credentials.phone ? { phone: credentials.phone } : undefined
+        ].filter(Boolean)
+      }
+
       // Find existing user
       let user = await prisma.user.findFirst({
-        where: {
-          OR: [
-            credentials.email ? { email: credentials.email } : undefined,
-            credentials.phone ? { phone: credentials.phone } : undefined
-          ].filter(Boolean) as any
-        },
+        where: whereClause,
         include: {
           restaurantOwner: true
         }
       })
 
+      // Find existing restaurant owner (might be orphaned)
+      const existingOwner = await prisma.restaurantOwner.findFirst({
+        where: whereClause
+      })
+
       if (!user) {
-  // Create new User
-  user = await prisma.user.create({
-    data: {
-      email: credentials.email || `temp-${Date.now()}@example.com`,
-      phone: credentials.phone || null,
-      name: credentials.name || null,
-      role: 'RESTAURANT_OWNER',
-      emailVerified: credentials.email ? new Date() : null,
-      phoneVerified: credentials.phone ? true : false,
-    },
-    include: {
-      restaurantOwner: true
-    }
-  })
+        // Create new user
+        user = await prisma.user.create({
+          data: {
+            email: credentials.email || `temp-${Date.now()}@example.com`,
+            phone: credentials.phone || null,
+            name: credentials.name || null,
+            role: 'RESTAURANT_OWNER',
+            emailVerified: credentials.email ? new Date() : null,
+            phoneVerified: credentials.phone ? true : false,
+          }
+        })
 
-  // Create RestaurantOwner with split names
-  await prisma.restaurantOwner.create({
-    data: {
-      userId: user.id,
-      email: credentials.email || `temp-${Date.now()}@example.com`,
-      phone: credentials.phone || `temp-${Date.now()}`,
-      firstName: firstName,
-      lastName: lastName,
-      verified: true
-    }
-  })
+        // Handle restaurant owner
+        if (existingOwner) {
+          // Link orphaned restaurant owner to new user
+          await prisma.restaurantOwner.update({
+            where: { id: existingOwner.id },
+            data: {
+              userId: user.id,
+              email: credentials.email || existingOwner.email,
+              phone: credentials.phone || existingOwner.phone,
+              firstName: firstName || existingOwner.firstName,
+              lastName: lastName || existingOwner.lastName,
+              verified: true
+            }
+          })
+        } else {
+          // Create new restaurant owner
+          await prisma.restaurantOwner.create({
+            data: {
+              userId: user.id,
+              email: credentials.email || `temp-${Date.now()}@example.com`,
+              phone: credentials.phone || `temp-${Date.now()}`,
+              firstName: firstName,
+              lastName: lastName,
+              verified: true
+            }
+          })
+        }
+      } else {
+        // User exists - update role if needed
+        if (user.role !== 'RESTAURANT_OWNER') {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { 
+              role: 'RESTAURANT_OWNER',
+              name: credentials.name || user.name
+            }
+          })
+        }
 
-  // Refetch to include the restaurantOwner
-  const refetchedUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    include: {
-      restaurantOwner: true
-    }
-  })
-
-  // ✅ Add null check here
-  if (!refetchedUser) {
-    throw new Error('Failed to create user')
-  }
-  
-  user = refetchedUser
-
-} else {
-  // Update role if needed
-  if (user.role !== 'RESTAURANT_OWNER') {
-    user = await prisma.user.update({
-      where: { id: user.id },
-      data: { 
-        role: 'RESTAURANT_OWNER',
-        name: credentials.name || user.name
-      },
-      include: {
-        restaurantOwner: true
+        // Handle restaurant owner
+        if (!user.restaurantOwner) {
+          if (existingOwner) {
+            // Link existing owner to this user
+            await prisma.restaurantOwner.update({
+              where: { id: existingOwner.id },
+              data: {
+                userId: user.id,
+                email: credentials.email || existingOwner.email,
+                phone: credentials.phone || existingOwner.phone,
+                firstName: firstName || existingOwner.firstName,
+                lastName: lastName || existingOwner.lastName,
+                verified: true
+              }
+            })
+          } else {
+            // Create new restaurant owner
+            await prisma.restaurantOwner.create({
+              data: {
+                userId: user.id,
+                email: credentials.email || user.email || `temp-${Date.now()}@example.com`,
+                phone: credentials.phone || user.phone || `temp-${Date.now()}`,
+                firstName: firstName,
+                lastName: lastName,
+                verified: true
+              }
+            })
+          }
+        } else {
+          // Restaurant owner exists - just update verification
+          await prisma.restaurantOwner.update({
+            where: { id: user.restaurantOwner.id },
+            data: {
+              verified: true,
+              email: credentials.email || user.restaurantOwner.email,
+              phone: credentials.phone || user.restaurantOwner.phone,
+              firstName: firstName || user.restaurantOwner.firstName,
+              lastName: lastName || user.restaurantOwner.lastName,
+            }
+          })
+        }
       }
-    })
-  }
 
-  // Create RestaurantOwner if doesn't exist
-  if (!user.restaurantOwner) {
-    await prisma.restaurantOwner.create({
-      data: {
-        userId: user.id,
-        email: credentials.email || user.email || `temp-${Date.now()}@example.com`,
-        phone: credentials.phone || user.phone || `temp-${Date.now()}`,
-        firstName: firstName,
-        lastName: lastName,
-        verified: true
+      // Refetch user with restaurant owner
+      const finalUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          restaurantOwner: true
+        }
+      })
+
+      if (!finalUser || !finalUser.restaurantOwner) {
+        throw new Error('Failed to create or fetch user with restaurant owner')
       }
-    })
 
-    // Refetch with relation
-    const refetchedUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      include: {
-        restaurantOwner: true
+      // Return user data
+      return {
+        id: finalUser.id,
+        email: finalUser.email,
+        name: finalUser.name,
+        role: finalUser.role,
+        restaurantOwnerId: finalUser.restaurantOwner.id
       }
-    })
-
-    // ✅ Add null check here too
-    if (!refetchedUser) {
-      throw new Error('Failed to fetch user')
-    }
-    
-    user = refetchedUser
-  }
-}
-
-return {
-  id: user.id,
-  email: user.email,
-  name: user.name,
-  role: user.role
-}
     } catch (error) {
       console.error('Restaurant Owner OTP error:', error)
       throw error
@@ -351,7 +381,6 @@ return {
         }
 
         try {
-          // Verify OTP
           const result = await verifyOTP({
             identifier,
             otp: credentials.otp,
@@ -362,34 +391,32 @@ return {
             throw new Error(result.message)
           }
 
-          // Find or create User
           let user = await prisma.user.findFirst({
             where: {
               OR: [
-                { email: credentials.email || undefined },
-                { phone: credentials.phone || undefined }
-              ].filter(condition => Object.values(condition)[0] !== undefined)
+                credentials.email ? { email: credentials.email } : undefined,
+                credentials.phone ? { phone: credentials.phone } : undefined
+              ].filter(Boolean) as any
             }
           })
 
           if (!user) {
-            // Create new Customer
             user = await prisma.user.create({
               data: {
-                email: credentials.email ? credentials.email : `temp-${Date.now()}@example.com`,
-                ...(credentials.phone && { phone: credentials.phone }),
+                email: credentials.email || `temp-${Date.now()}@example.com`,
+                phone: credentials.phone || null,
                 name: credentials.name || null,
                 role: 'CUSTOMER',
-                ...(credentials.email && { emailVerified: new Date() }),
-                ...(credentials.phone && { phoneVerified: true }),
+                emailVerified: credentials.email ? new Date() : null,
+                phoneVerified: credentials.phone ? true : false,
               }
             })
           }
 
           return {
             id: user.id,
-            email: user.email || null,
-            name: user.name || null,
+            email: user.email,
+            name: user.name,
             role: user.role
           }
         } catch (error) {
@@ -423,7 +450,6 @@ return {
         }
 
         try {
-          // Verify OTP
           const result = await verifyOTP({
             identifier,
             otp: credentials.otp,
@@ -434,58 +460,76 @@ return {
             throw new Error(result.message)
           }
 
-          // Find or create User
           let user = await prisma.user.findFirst({
             where: {
               OR: [
-                { email: credentials.email || undefined },
-                { phone: credentials.phone || undefined }
-              ].filter(condition => Object.values(condition)[0] !== undefined)
+                credentials.email ? { email: credentials.email } : undefined,
+                credentials.phone ? { phone: credentials.phone } : undefined
+              ].filter(Boolean) as any
+            },
+            include: {
+              deliveryPartner: true // ✅ ADDED: Include relation
             }
           })
 
           if (!user) {
-            // Create new Delivery Partner User
             user = await prisma.user.create({
               data: {
-                ...(credentials.email ? { email: credentials.email } : { email: `temp-${Date.now()}@example.com` }),
-                ...(credentials.phone && { phone: credentials.phone }),
+                email: credentials.email || `temp-${Date.now()}@example.com`,
+                phone: credentials.phone || null,
                 name: credentials.firstName && credentials.lastName 
                   ? `${credentials.firstName} ${credentials.lastName}`
                   : null,
                 role: 'DELIVERY_PARTNER',
-                ...(credentials.email && { emailVerified: new Date() }),
-                ...(credentials.phone && { phoneVerified: true }),
+                emailVerified: credentials.email ? new Date() : null,
+                phoneVerified: credentials.phone ? true : false,
               }
             })
 
-            // Create DeliveryPartner record
+            // ✅ FIXED: Link userId properly
             await prisma.deliveryPartner.create({
               data: {
+                userId: user.id, // ✅ ADDED: Link to user
                 firstName: credentials.firstName || '',
                 lastName: credentials.lastName || '',
                 email: credentials.email || identifier,
                 phone: credentials.phone || identifier,
-                vehicleType: 'BIKE', // Default, can be updated later
-                vehicleNumber: '', // To be filled during onboarding
-                licenseNumber: '', // To be filled during onboarding
+                vehicleType: 'BIKE',
+                vehicleNumber: '',
+                licenseNumber: '',
                 isVerified: false
               }
             })
           } else {
-            // Update role if needed
             if (user.role !== 'DELIVERY_PARTNER') {
               user = await prisma.user.update({
                 where: { id: user.id },
                 data: { role: 'DELIVERY_PARTNER' }
               })
             }
+
+            // ✅ FIXED: Create delivery partner if doesn't exist
+            if (!user.deliveryPartner) {
+              await prisma.deliveryPartner.create({
+                data: {
+                  userId: user.id,
+                  firstName: credentials.firstName || '',
+                  lastName: credentials.lastName || '',
+                  email: credentials.email || user.email || identifier,
+                  phone: credentials.phone || user.phone || identifier,
+                  vehicleType: 'BIKE',
+                  vehicleNumber: '',
+                  licenseNumber: '',
+                  isVerified: false
+                }
+              })
+            }
           }
 
           return {
             id: user.id,
-            email: user.email || null,
-            name: user.name || null,
+            email: user.email,
+            name: user.name,
             role: user.role
           }
         } catch (error) {
@@ -501,6 +545,7 @@ return {
       if (user) {
         token.id = user.id
         token.role = user.role
+        token.restaurantOwnerId = user.restaurantOwnerId // ✅ FIXED: Now exists on User type
       }
       return token
     },
@@ -509,18 +554,16 @@ return {
       if (token && session.user) {
         session.user.id = token.id
         session.user.role = token.role
+        session.user.restaurantOwnerId = token.restaurantOwnerId // ✅ ADDED
       }
       return session
     },
 
     async signIn({ user, account }) {
-      // All providers are allowed
       return true
     },
 
     async redirect({ url, baseUrl }) {
-      // Redirect based on role
-      // This is a basic implementation - customize per app
       if (url.startsWith(baseUrl)) {
         return url
       }

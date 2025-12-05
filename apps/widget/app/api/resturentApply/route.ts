@@ -77,9 +77,9 @@ export const POST = async (req: NextRequest) => {
     return NextResponse.json({ error: "Aadhar document is required" }, { status: 400 });
   }
 
-  if (!documents.pan) {
-    return NextResponse.json({ error: "PAN document is required" }, { status: 400 });
-  }
+  // if (!documents.pan) {
+  //   return NextResponse.json({ error: "PAN document is required" }, { status: 400 });
+  // }
 
   if (!documents.fssai) {
     return NextResponse.json({ error: "FSSAI document is required" }, { status: 400 });
@@ -211,6 +211,7 @@ if (user.role !== "RESTAURANT_OWNER") {
       );
 
       // PAN document
+      if(documents.pan)
       documentPromises.push(
         tx.applicationDocument.create({
           data: {

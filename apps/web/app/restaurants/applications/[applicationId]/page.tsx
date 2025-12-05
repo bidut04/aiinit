@@ -60,7 +60,7 @@ export default async function ApplicationDetailPage({
       <div className="max-w-5xl mx-auto px-4">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-3xl font-bold">{application.restaurantName}</h1>
+            <h1 className="text-3xl font-bold text-black">{application.restaurantName}</h1>
             <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
               application.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
               application.status === 'APPROVED' ? 'bg-green-100 text-green-800' :
@@ -72,75 +72,75 @@ export default async function ApplicationDetailPage({
 
           {/* Owner Details */}
           <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Owner Information</h2>
+            <h2 className="text-xl font-semibold mb-4 text-black">Owner Information</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-gray-600">Name</label>
-                <p className="font-medium">{application.ownerFirstName} {application.ownerLastName}</p>
+                <label className="text-sm  text-black">Name</label>
+                <p className="font-medium text-black">{application.ownerFirstName} {application.ownerLastName}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Email</label>
-                <p className="font-medium">{application.ownerEmail}</p>
+                <label className="text-sm text-gray-950" text-black>Email</label>
+                <p className="font-medium text-black">{application.ownerEmail}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Phone</label>
-                <p className="font-medium">{application.ownerPhone}</p>
+                <label className="text-sm text-gray-950">Phone</label>
+                <p className="font-medium text-black">{application.ownerPhone}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">PAN Number</label>
-                <p className="font-medium">{application.panNumber}</p>
+                <label className="text-sm text-gray-950">PAN Number</label>
+                <p className="font-medium text-black">{application.panNumber}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Aadhar Number</label>
-                <p className="font-medium">{application.aadharNumber}</p>
+                <label className="text-sm text-gray-950">Aadhar Number</label>
+                <p className="font-medium text-black">{application.aadharNumber}</p>
               </div>
             </div>
           </section>
 
           {/* Restaurant Details */}
           <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Restaurant Details</h2>
+            <h2 className="text-xl font-semibold mb-4 text-black">Restaurant Details</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-gray-600">Type</label>
-                <p className="font-medium">{application.restaurantType}</p>
+                <label className="text-sm text-gray-950">Type</label>
+                <p className="font-medium text-black">{application.restaurantType}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Cuisines</label>
+                <label className="text-sm text-gray-950">Cuisines</label>
                 <p className="font-medium">{application.cuisineTypes.join(', ')}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">FSSAI License</label>
-                <p className="font-medium">{application.fssaiNumber}</p>
+                <label className="text-sm text-gray-950">FSSAI License</label>
+                <p className="font-medium text-black">{application.fssaiNumber}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Seating Capacity</label>
-                <p className="font-medium">{application.seatingCapacity}</p>
+                <label className="text-sm text-gray-950">Seating Capacity</label>
+                <p className="font-medium text-black">{application.seatingCapacity}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">GST Number</label>
+                <label className="text-sm text-gray-950">GST Number</label>
                 <p className="font-medium">{application.gstNumber || 'N/A'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Establishment Type</label>
-                <p className="font-medium">{application.establishmentType}</p>
+                <label className="text-sm text-gray-950">Establishment Type</label>
+                <p className="font-medium text-black">{application.establishmentType}</p>
               </div>
             </div>
           </section>
 
           {/* Address */}
           <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Address</h2>
+            <h2 className="text-xl font-semibold mb-4 text-black">Address</h2>
             <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="font-medium">
+              <p className="font-medium text-black">
                 {application.addressLine1}
                 {application.addressLine2 && `, ${application.addressLine2}`}
               </p>
-              <p className="font-medium mt-1">
+              <p className="font-medium mt-1 text-black">
                 {application.city}, {application.state} - {application.pincode}
               </p>
               {application.landmark && (
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm text-gray-950 mt-1">
                   Landmark: {application.landmark}
                 </p>
               )}
@@ -149,31 +149,31 @@ export default async function ApplicationDetailPage({
 
           {/* Operational Details */}
           <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">Operational Details</h2>
+            <h2 className="text-xl font-semibold mb-4 text-black">Operational Details</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm text-gray-600">Opening Time</label>
-                <p className="font-medium">{application.openingTime}</p>
+                <label className="text-sm text-gray-950">Opening Time</label>
+                <p className="font-medium text-black">{application.openingTime}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Closing Time</label>
-                <p className="font-medium">{application.closingTime}</p>
+                <label className="text-sm text-gray-950">Closing Time</label>
+                <p className="font-medium text-black">{application.closingTime}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Pure Veg</label>
-                <p className="font-medium">{application.isPureVeg ? '✓ Yes' : '✗ No'}</p>
+                <label className="text-sm text-gray-950">Pure Veg</label>
+                <p className="font-medium text-black">{application.isPureVeg ? '✓ Yes' : '✗ No'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">Parking Available</label>
-                <p className="font-medium">{application.hasParking ? '✓ Yes' : '✗ No'}</p>
+                <label className="text-sm text-gray-950">Parking Available</label>
+                <p className="font-medium text-black">{application.hasParking ? '✓ Yes' : '✗ No'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">WiFi Available</label>
-                <p className="font-medium">{application.hasWifi ? '✓ Yes' : '✗ No'}</p>
+                <label className="text-sm text-gray-950">WiFi Available</label>
+                <p className="font-medium text-black">{application.hasWifi ? '✓ Yes' : '✗ No'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-600">AC Available</label>
-                <p className="font-medium">{application.hasAC ? '✓ Yes' : '✗ No'}</p>
+                <label className="text-sm text-gray-950">AC Available</label>
+                <p className="font-medium text-black">{application.hasAC ? '✓ Yes' : '✗ No'}</p>
               </div>
             </div>
           </section>
@@ -279,30 +279,30 @@ export default async function ApplicationDetailPage({
             <div className="space-y-2">
               <div>
                 <label className="text-sm text-gray-600">Submitted At</label>
-                <p className="font-medium">{new Date(application.submittedAt).toLocaleString()}</p>
+                <p className="font-medium text-black">{new Date(application.submittedAt).toLocaleString()}</p>
               </div>
               {application.reviewedAt && (
                 <div>
                   <label className="text-sm text-gray-600">Reviewed At</label>
-                  <p className="font-medium">{new Date(application.reviewedAt).toLocaleString()}</p>
+                  <p className="font-medium text-black">{new Date(application.reviewedAt).toLocaleString()}</p>
                 </div>
               )}
               {application.approvedAt && (
                 <div>
                   <label className="text-sm text-gray-600">Approved At</label>
-                  <p className="font-medium">{new Date(application.approvedAt).toLocaleString()}</p>
+                  <p className="font-medium text-black">{new Date(application.approvedAt).toLocaleString()}</p>
                 </div>
               )}
               {application.rejectedAt && (
                 <div>
                   <label className="text-sm text-gray-600">Rejected At</label>
-                  <p className="font-medium">{new Date(application.rejectedAt).toLocaleString()}</p>
+                  <p className="font-medium text-black">{new Date(application.rejectedAt).toLocaleString()}</p>
                 </div>
               )}
               {application.reviewedBy && (
                 <div>
                   <label className="text-sm text-gray-600">Reviewed By</label>
-                  <p className="font-medium">{application.reviewedBy}</p>
+                  <p className="font-medium text-black">{application.reviewedBy}</p>
                 </div>
               )}
               {application.rejectionReason && (

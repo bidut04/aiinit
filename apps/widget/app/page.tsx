@@ -58,12 +58,29 @@ type FormData = {
 
 type Errors = Partial<Record<keyof FormData | keyof Documents, string>>;
 
+
+ const InputField = ({ label, value, onChange, error, required, ...props }: any) => (
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-900 mb-1">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-black ${
+          error ? 'border-red-500' : 'border-gray-300'
+        }`}
+        {...props}
+      />
+      {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
+    </div>
+  );
+
 const ZomatoPartnerForm = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-
   const [formData, setFormData] = useState<FormData>({
     ownerFirstName: '',
     ownerLastName: '',
@@ -109,9 +126,12 @@ const ZomatoPartnerForm = () => {
     termsAccepted: false,
     commissionAgreed: false
   });
-
+  
   const [errors, setErrors] = useState<Errors>({});
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
+  // Session ID initialization
   useEffect(() => {
     let sid = localStorage.getItem('restaurantFormSessionId');
     if (!sid) {
@@ -121,6 +141,7 @@ const ZomatoPartnerForm = () => {
     setSessionId(sid);
   }, []);
 
+  // Load form data
   useEffect(() => {
     if (!sessionId) return;
     
@@ -135,7 +156,6 @@ const ZomatoPartnerForm = () => {
           setCurrentStep(parseInt(localStep || '0'));
         }
 
-        // For Redis implementation
         const response = await fetch(`/api/form/restore?sessionId=${sessionId}`);
         const result = await response.json();
         
@@ -183,6 +203,94 @@ const ZomatoPartnerForm = () => {
     { title: 'Documents', icon: '📄' },
     { title: 'Review', icon: '✅' }
   ];
+
+  const syncToRedis = async (data: FormData, step: number) => {
+    if (!sessionId) return;
+    setIsSyncing(true);
+    try {
+      const response = await fetch('/api/form/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId,
+          formData: data,
+          currentStep: step,
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setLastSyncTime(new Date());
+        console.log('✅ Synced to Redis');
+      }
+    } catch (error) {
+      console.error('Error syncing to Redis:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const debouncedSyncToRedis = useCallback(
+    debounce((data: FormData, step: number) => syncToRedis(data, step), 3000),
+    [sessionId]
+  );
+
+  // FILE UPLOAD HANDLER - NOW INSIDE COMPONENT
+  const handleFileUpload = (docType: keyof FormData['documents'], result: UploadResult | null) => {
+    const updatedData = {
+      ...formData,
+      documents: {
+        ...formData.documents,
+        [docType]: result ? result.secureUrl : null
+      }
+    };
+    
+    setFormData(updatedData);
+    localStorage.setItem('restaurantFormData', JSON.stringify(updatedData));
+    
+    if (errors[docType]) {
+      setErrors(prev => ({ ...prev, [docType]: undefined }));
+    }
+    
+    debouncedSyncToRedis(updatedData, currentStep);
+  };
+
+  const handleMultiplePhotos = (result: UploadResult) => {
+    const updatedData = {
+      ...formData,
+      documents: {
+        ...formData.documents,
+        restaurantPhotos: [...formData.documents.restaurantPhotos, result.secureUrl].slice(0, 10)
+      }
+    };
+    
+    setFormData(updatedData);
+    localStorage.setItem('restaurantFormData', JSON.stringify(updatedData));
+    
+    if (errors.restaurantPhotos && updatedData.documents.restaurantPhotos.length >= 1) {
+      setErrors(prev => ({ ...prev, restaurantPhotos: undefined }));
+    }
+    
+    debouncedSyncToRedis(updatedData, currentStep);
+  };
+
+  const removePhoto = (index: number) => {
+    const updatedData = {
+      ...formData,
+      documents: {
+        ...formData.documents,
+        restaurantPhotos: formData.documents.restaurantPhotos.filter((_: string, i: number) => i !== index)
+      }
+    };
+    
+    setFormData(updatedData);
+    localStorage.setItem('restaurantFormData', JSON.stringify(updatedData));
+    debouncedSyncToRedis(updatedData, currentStep);
+  };
 
   const validateStep = (step: number) => {
     const newErrors: Errors = {};
@@ -241,20 +349,11 @@ const ZomatoPartnerForm = () => {
         break;
         
       case 6:
-        if (!formData.documents.aadhar) {
-    newErrors.aadhar = 'Aadhar document is required';
-  }
-  
-  
-  // Validate FSSAI document
-  if (!formData.documents.fssai) {
-    newErrors.fssai = 'FSSAI license document is required';
-  }
-  
-  // Validate restaurant photos (at least 1)
-  if (!formData.documents.restaurantPhotos || formData.documents.restaurantPhotos.length < 1) {
-    newErrors.restaurantPhotos = 'Upload at least 1 restaurant photo';
-  }
+        if (!formData.documents.aadhar) newErrors.aadhar = 'Aadhar document is required';
+        if (!formData.documents.fssai) newErrors.fssai = 'FSSAI license document is required';
+        if (!formData.documents.restaurantPhotos || formData.documents.restaurantPhotos.length < 1) {
+          newErrors.restaurantPhotos = 'Upload at least 1 restaurant photo';
+        }
         break;
         
       case 7:
@@ -266,41 +365,6 @@ const ZomatoPartnerForm = () => {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
-  const syncToRedis = async (data: FormData, step: number) => {
-    if (!sessionId) return;
-    setIsSyncing(true);
-    try {
-      const response = await fetch('/api/form/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sessionId,
-          formData: data,
-          currentStep: step,
-          timestamp: new Date().toISOString()
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        setLastSyncTime(new Date());
-        console.log('✅ Synced to Redis');
-      }
-    } catch (error) {
-      console.error('Error syncing to Redis:', error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const debouncedSyncToRedis = useCallback(
-    debounce((data: FormData, step: number) => syncToRedis(data, step), 3000),
-    [sessionId]
-  );
 
   const handleNext = async () => {
     if (validateStep(currentStep)) {
@@ -351,58 +415,6 @@ const ZomatoPartnerForm = () => {
     debouncedSyncToRedis(updatedData, currentStep);
   };
 
-  const handleFileUpload = (docType: keyof FormData['documents'], result: UploadResult | null) => {
-    const updatedData = {
-      ...formData,
-      documents: {
-        ...formData.documents,
-        [docType]: result ? result.secureUrl : null
-      }
-    };
-    
-    setFormData(updatedData);
-    localStorage.setItem('restaurantFormData', JSON.stringify(updatedData));
-    
-    if (errors[docType]) {
-      setErrors(prev => ({ ...prev, [docType]: undefined }));
-    }
-    
-    debouncedSyncToRedis(updatedData, currentStep);
-  };
-
-  const handleMultiplePhotos = (result: UploadResult) => {
-    const updatedData = {
-      ...formData,
-      documents: {
-        ...formData.documents,
-        restaurantPhotos: [...formData.documents.restaurantPhotos, result.secureUrl].slice(0, 10)
-      }
-    };
-    
-    setFormData(updatedData);
-    localStorage.setItem('restaurantFormData', JSON.stringify(updatedData));
-    
-    if (errors.restaurantPhotos && updatedData.documents.restaurantPhotos.length >= 1) {
-      setErrors(prev => ({ ...prev, restaurantPhotos: undefined }));
-    }
-    
-    debouncedSyncToRedis(updatedData, currentStep);
-  };
-
-  const removePhoto = (index: number) => {
-    const updatedData = {
-      ...formData,
-      documents: {
-        ...formData.documents,
-        restaurantPhotos: formData.documents.restaurantPhotos.filter((_: string, i: number) => i !== index)
-      }
-    };
-    
-    setFormData(updatedData);
-    localStorage.setItem('restaurantFormData', JSON.stringify(updatedData));
-    debouncedSyncToRedis(updatedData, currentStep);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -422,16 +434,9 @@ const ZomatoPartnerForm = () => {
       if (response.ok) {
         alert('Application submitted successfully! Our team will review and contact you within 2-3 business days.');
         
-        // Cleanup
         localStorage.removeItem('restaurantFormData');
         localStorage.removeItem('restaurantFormStep');
         localStorage.removeItem('restaurantFormSessionId');
-        
-        // if (sessionId) {
-        //   await fetch(`/api/form/cleanup?sessionId=${sessionId}`, {
-        //     method: 'DELETE'
-        //   });
-        // }
       } else {
         const errorData = await response.json();
         alert(`Error: ${errorData.message || 'Submission failed'}`);
@@ -444,22 +449,10 @@ const ZomatoPartnerForm = () => {
     }
   };
 
-  const InputField = ({ label, value, onChange, error, required, ...props }: any) => (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-1">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent ${
-          error ? 'border-red-500' : 'border-gray-300'
-        }`}
-        {...props}
-      />
-      {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
-    </div>
-  );
+  // REUSABLE COMPONENTS
+
+
+ //input file component
 
   const FileUpload = ({
     label,
@@ -511,14 +504,14 @@ const ZomatoPartnerForm = () => {
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Restaurant Owner Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
+              <InputField className="text-black"
                 label="First Name"
                 value={formData.ownerFirstName}
                 onChange={(v: string) => handleInputChange('ownerFirstName', v)}
                 error={errors.ownerFirstName}
                 required
               />
-              <InputField
+              <InputField className="text-black"
                 label="Last Name"
                 value={formData.ownerLastName}
                 onChange={(v: string) => handleInputChange('ownerLastName', v)}
@@ -527,7 +520,7 @@ const ZomatoPartnerForm = () => {
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
+              <InputField className="text-black"
                 label="Email Address"
                 type="email"
                 value={formData.ownerEmail}
@@ -535,7 +528,7 @@ const ZomatoPartnerForm = () => {
                 error={errors.ownerEmail}
                 required
               />
-              <InputField
+              <InputField className="text-black"
                 label="Phone Number"
                 type="tel"
                 value={formData.ownerPhone}
@@ -546,7 +539,7 @@ const ZomatoPartnerForm = () => {
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
+              <InputField className="text-black"
                 label="Aadhar Number"
                 value={formData.aadharNumber}
                 onChange={(v: string) => handleInputChange('aadharNumber', v)}
@@ -555,7 +548,7 @@ const ZomatoPartnerForm = () => {
                 placeholder="12-digit Aadhar number"
                 maxLength={12}
               />
-              <InputField
+              <InputField className="text-black"
                 label="PAN Number"
                 value={formData.panNumber}
                 onChange={(v: string) => handleInputChange('panNumber', v.toUpperCase())}
@@ -572,7 +565,7 @@ const ZomatoPartnerForm = () => {
         return (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Restaurant Information</h2>
-            <InputField
+            <InputField className="text-black"
               label="Restaurant Name"
               value={formData.restaurantName}
               onChange={(v: string) => handleInputChange('restaurantName', v)}
@@ -608,7 +601,7 @@ const ZomatoPartnerForm = () => {
                     key={cuisine}
                     type="button"
                     onClick={() => handleCuisineToggle(cuisine)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors  text-black${
                       formData.cuisineTypes.includes(cuisine)
                         ? 'bg-red-500 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -643,40 +636,81 @@ const ZomatoPartnerForm = () => {
 
       case 2:
         return (
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Business Details</h2>
-            <InputField
-              label="FSSAI License Number"
-              value={formData.fssaiNumber}
-              onChange={(v: string) => handleInputChange('fssaiNumber', v)}
-              error={errors.fssaiNumber}
-              required
-              placeholder="14-digit FSSAI number"
-              maxLength={14}
-            />
-            <InputField
-              label="GST Number (if applicable)"
-              value={formData.gstNumber}
-              onChange={(v: string) => handleInputChange('gstNumber', v.toUpperCase())}
-              error={errors.gstNumber}
-              placeholder="15-digit GST number"
-              maxLength={15}
-            />
-            <InputField
-              label="Business License Number (if applicable)"
-              value={formData.businessLicense}
-              onChange={(v: string) => handleInputChange('businessLicense', v)}
-              error={errors.businessLicense}
-              placeholder="Business license/registration number"
-            />
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-start">
-                <AlertCircle className="text-blue-500 mr-3 mt-0.5" size={20} />
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Business Details</h2>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-900 mb-1">
+                FSSAI License Number <span className="text-red-500">*</span>
+              </label>
+              <input 
+                type="text"
+                value={formData.fssaiNumber}
+                onChange={(e) => handleInputChange('fssaiNumber', e.target.value)}
+                placeholder="14-digit FSSAI number"
+                maxLength={14}
+                className={`w-full px-4 py-2.5 text-gray-900 bg-white border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors ${
+                  errors.fssaiNumber ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors.fssaiNumber && (
+                <p className="mt-1 text-sm text-red-600">{errors.fssaiNumber}</p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-900 mb-1">
+                GST Number <span className="text-gray-500 text-xs">(if applicable)</span>
+              </label>
+              <input 
+                type="text"
+                value={formData.gstNumber}
+                onChange={(e) => handleInputChange('gstNumber', e.target.value.toUpperCase())}
+                placeholder="15-digit GST number"
+                maxLength={15}
+                className={`w-full px-4 py-2.5 text-gray-900 bg-white border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors ${
+                  errors.gstNumber ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors.gstNumber && (
+                <p className="mt-1 text-sm text-red-600">{errors.gstNumber}</p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-900 mb-1">
+                Business License Number <span className="text-gray-500 text-xs">(if applicable)</span>
+              </label>
+              <input 
+                type="text"
+                value={formData.businessLicense}
+                onChange={(e) => handleInputChange('businessLicense', e.target.value)}
+                placeholder="Business license/registration number"
+                className={`w-full px-4 py-2.5 text-gray-900 bg-white border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors ${
+                  errors.businessLicense ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors.businessLicense && (
+                <p className="mt-1 text-sm text-red-600">{errors.businessLicense}</p>
+              )}
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={20} />
                 <div>
-                  <h4 className="font-semibold text-blue-800 mb-1">Important Information</h4>
-                  <p className="text-sm text-blue-700">
+                  <h4 className="font-semibold text-blue-900 mb-1">Important Information</h4>
+                  <p className="text-sm text-blue-800 leading-relaxed">
                     FSSAI license is mandatory for all food businesses in India. If you don't have one, 
-                    you can apply at foscos.fssai.gov.in
+                    you can apply at{' '}
+                    <a 
+                      href="https://foscos.fssai.gov.in" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="underline hover:text-blue-900 font-medium"
+                    >
+                      foscos.fssai.gov.in
+                    </a>
                   </p>
                 </div>
               </div>
@@ -688,35 +722,35 @@ const ZomatoPartnerForm = () => {
         return (
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Restaurant Address</h2>
-            <InputField
+            <InputField className="text-black"
               label="Address Line 1"
               value={formData.addressLine1}
               onChange={(v: string) => handleInputChange('addressLine1', v)}
               error={errors.addressLine1}
               required
               placeholder="Building number, street name"
-            />
-            <InputField
+            /> 
+            <InputField className="text-black"
               label="Address Line 2"
               value={formData.addressLine2}
               onChange={(v: string) => handleInputChange('addressLine2', v)}
               placeholder="Area, locality"
             />
-            <InputField
+            <InputField className="text-black"
               label="Landmark"
               value={formData.landmark}
               onChange={(v: string) => handleInputChange('landmark', v)}
               placeholder="Nearby landmark"
             />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <InputField
+              <InputField className="text-black"
                 label="City"
                 value={formData.city}
                 onChange={(v: string) => handleInputChange('city', v)}
                 error={errors.city}
                 required
               />
-              <InputField
+              <InputField className="text-black"
                 label="State"
                 value={formData.state}
                 onChange={(v: string) => handleInputChange('state', v)}
@@ -740,7 +774,7 @@ const ZomatoPartnerForm = () => {
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Operational Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
+              <InputField className="text-black"
                 label="Opening Time"
                 type="time"
                 value={formData.openingTime}
@@ -748,7 +782,7 @@ const ZomatoPartnerForm = () => {
                 error={errors.openingTime}
                 required
               />
-              <InputField
+              <InputField className="text-black"
                 label="Closing Time"
                 type="time"
                 value={formData.closingTime}
@@ -757,7 +791,7 @@ const ZomatoPartnerForm = () => {
                 required
               />
             </div>
-            <InputField
+            <InputField className="text-black"
               label="Seating Capacity"
               type="number"
               value={formData.seatingCapacity}
@@ -827,7 +861,7 @@ const ZomatoPartnerForm = () => {
                 </div>
               </div>
             </div>
-            <InputField
+            <InputField className="text-black"
               label="Account Holder Name"
               value={formData.accountName}
               onChange={(v: string) => handleInputChange('accountName', v)}
@@ -836,7 +870,7 @@ const ZomatoPartnerForm = () => {
               placeholder="As per bank records"
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
+              <InputField className="text-black"
                 label="Account Number"
                 value={formData.accountNumber}
                 onChange={(v: string) => handleInputChange('accountNumber', v)}
@@ -844,7 +878,7 @@ const ZomatoPartnerForm = () => {
                 required
                 type="password"
               />
-              <InputField
+              <InputField className="text-black"
                 label="Confirm Account Number"
                 value={formData.confirmAccountNumber}
                 onChange={(v: string) => handleInputChange('confirmAccountNumber', v)}
@@ -852,7 +886,7 @@ const ZomatoPartnerForm = () => {
                 required
               />
             </div>
-            <InputField
+            <InputField className="text-black"
               label="IFSC Code"
               value={formData.ifscCode}
               onChange={(v: string) => handleInputChange('ifscCode', v.toUpperCase())}
@@ -869,7 +903,7 @@ const ZomatoPartnerForm = () => {
                 error={errors.bankName}
                 required
               />
-              <InputField
+              <InputField className="text-black"
                 label="Branch Name"
                 value={formData.branchName}
                 onChange={(v: string) => handleInputChange('branchName', v)}
@@ -886,8 +920,8 @@ const ZomatoPartnerForm = () => {
                 onChange={(e) => handleInputChange('accountType', e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500"
               >
-                <option value="CURRENT">Current Account</option>
-                <option value="SAVINGS">Savings Account</option>
+                <option className="text-black" value="CURRENT">Current Account</option>
+                <option className="text-black" value="SAVINGS">Savings Account</option>
               </select>
             </div>
           </div>
@@ -898,18 +932,17 @@ const ZomatoPartnerForm = () => {
           <div className="space-y-4">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">Upload Documents</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FileUpload
+              <FileUpload 
                 label="Aadhar Card"
                 docType="aadhar"
                 accept=".pdf,.jpg,.jpeg,.png"
                 required
                 error={errors.aadhar}
               />
-              <FileUpload
+              <FileUpload 
                 label="PAN Card"
                 docType="pan"
                 accept=".pdf,.jpg,.jpeg,.png"
-                required
                 error={errors.pan}
               />
               <FileUpload

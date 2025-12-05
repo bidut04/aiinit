@@ -1,11 +1,55 @@
+// packages/lib/src/redis.ts
+
 import { Redis } from '@upstash/redis';
 import IORedis from 'ioredis';
 
-// ✅ Initialize Upstash Redis client for REST API operations
-export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+// ❌ REMOVE THIS - it runs too early
+// if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+//   throw new Error(
+//     '❌ Missing Redis credentials! Please set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in your .env file'
+//   );
+// }
+
+
+
+let redisInstance: Redis | null = null;
+
+function getRedisClient(): Redis {
+  if (!redisInstance) {
+    const url = process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    if (!url || !token) {
+      throw new Error(
+        '❌ Missing Redis credentials! Please set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN'
+      );
+    }
+
+    redisInstance = new Redis({ url, token });
+    console.log('✅ Redis client initialized');
+  }
+  return redisInstance;
+}
+
+export const redis = new Proxy({} as Redis, {
+  get(target, prop) {
+    const client = getRedisClient();
+    const value = client[prop as keyof Redis];
+    return typeof value === 'function' ? value.bind(client) : value;
+  },
 });
+console.log('🔍 Imported redis:', redis);
+console.log('🔍 Type of redis:', typeof redis);
+console.log('🔍 Redis constructor:', redis?.constructor?.name);
+
+// Try to call a method to trigger the Proxy
+try {
+  console.log('🔍 Trying to access redis.get...');
+  const testGet = redis.get;
+  console.log('🔍 redis.get exists:', !!testGet);
+} catch (e) {
+  console.error('❌ Error accessing redis.get:', e);
+}
 
 // ✅ ioredis instances for pub/sub (lazy initialization)
 let publisherInstance: IORedis | null = null;
@@ -25,8 +69,8 @@ function getRedisConfig() {
     host: parsed.hostname,
     port: parseInt(parsed.port) || 6379,
     password: parsed.password,
-    tls: parsed.protocol === 'rediss:' ? {} : undefined, // Enable TLS for rediss://
-    family: 4, // Force IPv4
+    tls: parsed.protocol === 'rediss:' ? {} : undefined,
+    family: 4,
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
     retryStrategy(times: number) {
@@ -96,7 +140,6 @@ export async function publishNotification(channel: string, data: any) {
     console.log(`✅ Published to ${channel}`);
   } catch (error) {
     console.error('Error publishing notification:', error);
-    // Don't throw - let the application continue even if pub/sub fails
   }
 }
 
@@ -106,7 +149,6 @@ export async function incrementUnreadCount(userId: string) {
     await redis.incr(`unread:${userId}`);
   } catch (error) {
     console.error('Error incrementing unread count:', error);
-    // Don't throw - this is not critical
   }
 }
 
@@ -125,7 +167,6 @@ export async function resetUnreadCount(userId: string) {
     await redis.del(`unread:${userId}`);
   } catch (error) {
     console.error('Error resetting unread count:', error);
-    // Don't throw - this is not critical
   }
 }
 

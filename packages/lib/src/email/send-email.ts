@@ -203,3 +203,54 @@ export async function sendDeliveryBoyOTP(
     html: getDeliveryBoyOTPTemplate(otp, purpose, expiryMinutes)
   })
 }
+
+
+
+export function getUserVerificationTemplate(
+  restaurantName: string,
+  otp: string,
+  purpose: string = 'approved',
+  expiryMinutes: number = 10
+): string {
+  const purposeText = purpose === 'approved' ? 'access your restaurant dashboard' : 'verify your account';
+
+  return `
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <h1 style="color: #1f2937;">🍽️ Restaurant Partner Portal</h1>
+      </div>
+      <div style="background: #f9fafb; border-radius: 8px; padding: 30px; margin: 20px 0;">
+        <h2 style="color: #374151; margin-bottom: 20px;">🎉 Congratulations!</h2>
+        <p style="color: #6b7280; margin-bottom: 20px; font-size: 16px;">
+          <strong>${restaurantName}</strong> has been approved!
+        </p>
+        <p style="color: #6b7280; margin-bottom: 20px;">
+          Use the verification code below to ${purposeText}:
+        </p>
+        <div style="background: white; border: 2px solid #f97316; border-radius: 8px; padding: 20px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1f2937; margin: 30px 0;">
+          ${otp}
+        </div>
+        <p style="color: #9ca3af; font-size: 14px; margin-top: 20px;">
+          ⏰ This code will expire in ${expiryMinutes} minutes.
+        </p>
+        <p style="color: #9ca3af; font-size: 14px; margin-top: 10px;">
+          🔒 Do not share this code with anyone.
+        </p>
+        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin-top: 20px; border-radius: 4px;">
+          <p style="color: #92400e; margin: 0; font-size: 14px;">
+            <strong>Next Steps:</strong><br/>
+            1. Use this code to verify your account<br/>
+            2. Complete your restaurant profile<br/>
+            3. Add your menu items<br/>
+            4. Start accepting orders!
+          </p>
+        </div>
+      </div>
+      <p style="color: #9ca3af; font-size: 12px; text-align: center; margin-top: 20px;">
+        If you didn't request this code, you can safely ignore this email.
+      </p>
+    </div>
+  `
+}
+
+

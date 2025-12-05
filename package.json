@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "workspaces": [
+        "apps/*",
     "packages/*"
   ],
   "scripts": {
@@ -30,7 +31,8 @@
     "@prisma/client": "^6.16.2",
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.3",
-    "ioredis": "^5.8.1"
+    "ioredis": "^5.8.1",
+    "lucide-react": "^0.475.0"
   },
   "type": "module"
 }

@@ -96,7 +96,10 @@ export default function RestaurantManagement() {
     setError(null);
     try {
       const response = await fetch('/api/restaurants/pending-application');
-      
+      if(response.status === 401){
+        router.push('/superAdmin-login')
+      }
+
       if (!response.ok) {
         throw new Error('Failed to fetch applications');
       }

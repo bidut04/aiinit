@@ -20,4 +20,4 @@ export {
   getFormSession, 
   deleteFormSession, 
   closeRedisConnections 
-} from './redis.js'
+} from './redis'

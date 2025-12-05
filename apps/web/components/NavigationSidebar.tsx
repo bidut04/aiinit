@@ -44,7 +44,7 @@ const navigationConfig = [
     path: '/restaurants',
     submenu: [
       { id: 'all-restaurants', label: 'All Restaurants', path: '/restaurants/applications' },
-      { id: 'pending-approval', label: 'Pending Approval', path: '/restaurants/pending', badge: 12 },
+      { id: 'pending-approval', label: 'Pending Approval', path: '/restaurants/applications', badge: 12 },
       { id: 'categories', label: 'Categories', path: '/restaurants/categories' },
       { id: 'cuisines', label: 'Cuisines', path: '/restaurants/cuisines' },
     ]

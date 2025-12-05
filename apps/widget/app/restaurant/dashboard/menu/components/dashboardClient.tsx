@@ -33,15 +33,19 @@ import { Textarea } from '@workspace/ui/components/textarea'
 import { Switch } from '@workspace/ui/components/switch'
 import { Select, SelectTrigger, SelectItem, SelectContent, SelectValue } from '@workspace/ui/components/select'
 import { useRestaurant } from '@/app/restaurant/context/restaurant-context'
+import useSWR from 'swr'
+
+const fetcher = (url: string) => fetch(url, { credentials: 'include' }).then(r => {
+  if (!r.ok) throw new Error('Failed to fetch')
+  return r.json()
+})
 
 export default function RestaurantMenuTable() {
   const { restaurantId, loading: contextLoading } = useRestaurant()
-  
-  // Data states
-  const [categories, setCategories] = useState([])
+ 
+  // UI states
   const [expandedCategories, setExpandedCategories] = useState(new Set())
   const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(false)
   
   // Dialog states
   const [showCategoryDialog, setShowCategoryDialog] = useState(false)
@@ -73,46 +77,29 @@ export default function RestaurantMenuTable() {
   const [imagePreview, setImagePreview] = useState(null)
   const [uploadingImage, setUploadingImage] = useState(false)
 
-  // Fetch categories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      if (!restaurantId) return
-      
-      try {
-        setLoading(true)
-        const response = await fetch(`/api/resturant/${restaurantId}/categories`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: "include"
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.message || 'Failed to fetch categories')
-        }
-
-        const data = await response.json()
-        console.log('Fetched categories:', data)
-        
-        setCategories(data)
-        
-        // Expand all categories by default
-        if (data && data.length > 0) {
-          setExpandedCategories(new Set(data.map(cat => cat.id)))
-        }
-
-      } catch (error) {
-        console.error('Error fetching categories:', error)
-        alert('Failed to load categories')
-      } finally {
-        setLoading(false)
-      }
+  // ✅ SWR for data fetching - SINGLE SOURCE OF TRUTH
+  const {
+    data: categories,
+    error,
+    isLoading,
+    mutate
+  } = useSWR(
+    restaurantId ? `/api/resturant/${restaurantId}/categories` : null,
+    fetcher,
+    {
+      refreshInterval: 0,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      dedupingInterval: 2000,
     }
+  )
 
-    fetchCategories()
-  }, [restaurantId])
+  // ✅ Expand all categories when data loads
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      setExpandedCategories(new Set(categories.map(cat => cat.id)))
+    }
+  }, [categories])
 
   const toggleCategory = (categoryId) => {
     const newExpanded = new Set(expandedCategories)
@@ -147,12 +134,9 @@ export default function RestaurantMenuTable() {
         throw new Error(error.message || 'Failed to create category')
       }
 
-      const newCategory = await response.json()
-      console.log('Category created:', newCategory)
-      
-      // Add new category to state
-      setCategories([...categories, newCategory])
-      
+      // ✅ Use SWR mutate to refresh data
+      await mutate()
+
       // Reset and close dialog
       setCategoryName('')
       setShowCategoryDialog(false)
@@ -162,6 +146,41 @@ export default function RestaurantMenuTable() {
     } catch (error) {
       console.error('Error creating category:', error)
       alert(error.message || 'Failed to create category')
+    }
+  }
+
+  // ✅ Fixed deleteMenuItem function
+  const deleteMenuItem = async (categoryId: string, menuItemId: string) => {
+    if (!confirm('Are you sure you want to delete this menu item?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `/api/resturant/${restaurantId}/categories/${categoryId}/menuItem/${menuItemId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: "include",
+          // ✅ No body needed for DELETE request
+        }
+      )
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.message || 'Failed to delete menu item')
+      }
+
+      // ✅ Refresh categories using SWR
+      await mutate()
+      
+      alert('Menu item deleted successfully!')
+      
+    } catch (error) {
+      console.error('Error deleting menu item:', error)
+      alert('Failed to delete menu item')
     }
   }
 
@@ -192,13 +211,11 @@ export default function RestaurantMenuTable() {
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0]
     if (file) {
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         alert('Please select an image file')
         return
       }
       
-      // Validate file size (5MB)
       if (file.size > 5 * 1024 * 1024) {
         alert('Image size should be less than 5MB')
         return
@@ -206,7 +223,6 @@ export default function RestaurantMenuTable() {
 
       setSelectedImage(file)
       
-      // Create preview
       const reader = new FileReader()
       reader.onloadend = () => {
         setImagePreview(reader.result)
@@ -253,13 +269,11 @@ export default function RestaurantMenuTable() {
     try {
       setUploadingImage(true)
       
-      // Upload image if selected
       let imageUrl = null
       if (selectedImage) {
         imageUrl = await uploadImageToCloudinary(selectedImage)
       }
 
-      // Prepare request body matching backend structure
       const requestBody = {
         categoryId: selectedCategory,
         name: itemName,
@@ -279,8 +293,6 @@ export default function RestaurantMenuTable() {
         sortOrder: 0
       }
 
-      console.log('Creating menu item:', requestBody)
-
       const response = await fetch(
         `/api/resturant/${restaurantId}/categories/${selectedCategory}/menuItem`,
         {
@@ -298,15 +310,8 @@ export default function RestaurantMenuTable() {
         throw new Error(error.message || 'Failed to create menu item')
       }
 
-      const newItem = await response.json()
-      console.log('Menu item created:', newItem)
-      
-      // Update categories state with new item
-      setCategories(categories.map(cat => 
-        cat.id === selectedCategory 
-          ? { ...cat, menuItems: [...(cat.menuItems || []), newItem] }
-          : cat
-      ))
+      // ✅ Use SWR mutate to refresh data
+      await mutate()
       
       // Reset and close
       resetItemForm()
@@ -323,22 +328,35 @@ export default function RestaurantMenuTable() {
     }
   }
 
-  const filteredCategories = categories.map(category => ({
+  // ✅ Filter categories safely
+  const filteredCategories = categories ? categories.map(category => ({
     ...category,
     menuItems: (category.menuItems || []).filter(item =>
       item.name.toLowerCase().includes(searchQuery.toLowerCase())
     )
   })).filter(category => 
     searchQuery === '' || category.menuItems.length > 0
-  )
+  ) : []
 
-  // Loading state
-  if (contextLoading || loading) {
+  // ✅ Loading state
+  if (contextLoading || isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading menu...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error loading menu: {error.message}</p>
+          <Button onClick={() => mutate()}>Retry</Button>
         </div>
       </div>
     )
@@ -407,7 +425,7 @@ export default function RestaurantMenuTable() {
               <TableRow>
                 <TableHead className="w-[50px] text-black"></TableHead>
                 <TableHead className="w-[80px] text-black">Image</TableHead>
-                <TableHead  className='text-black'>Item Name</TableHead>
+                <TableHead className='text-black'>Item Name</TableHead>
                 <TableHead className='text-black'>Description</TableHead>
                 <TableHead className="w-[100px] text-black">Type</TableHead>
                 <TableHead className="w-[120px] text-black">Price</TableHead>
@@ -441,7 +459,7 @@ export default function RestaurantMenuTable() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="font-semibold text-base text-black">{category.name}</span>
-                            <Badge variant="secondary" className=''>{category.menuItems?.length || 0} items</Badge>
+                            <Badge variant="secondary">{category.menuItems?.length || 0} items</Badge>
                           </div>
                           <Button
                             variant="outline"
@@ -526,7 +544,10 @@ export default function RestaurantMenuTable() {
                               <DropdownMenuItem>
                                 Toggle Availability
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">
+                              <DropdownMenuItem
+                                onClick={() => deleteMenuItem(category.id, item.id)}
+                                className="text-red-600"
+                              >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete Item
                               </DropdownMenuItem>
@@ -575,7 +596,7 @@ export default function RestaurantMenuTable() {
       <Dialog open={showItemDialog} onOpenChange={setShowItemDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto text-black">
           <DialogHeader>
-            <DialogTitle >Add Menu Item</DialogTitle>
+            <DialogTitle>Add Menu Item</DialogTitle>
             <DialogDescription>
               Add a new item to the selected category.
             </DialogDescription>
@@ -585,7 +606,7 @@ export default function RestaurantMenuTable() {
             {/* Image Upload Section */}
             <div className="grid gap-2">
               <Label>Item Image</Label>
-              <div className=" text-black border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-gray-400 transition-colors">
+              <div className="text-black border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-gray-400 transition-colors">
                 {imagePreview ? (
                   <div className="relative">
                     <img
@@ -597,7 +618,7 @@ export default function RestaurantMenuTable() {
                       type="button"
                       variant="destructive"
                       size="sm"
-                      className="absolute top-2 right-2 text-black"
+                      className="absolute top-2 right-2"
                       onClick={handleRemoveImage}
                     >
                       <X className="h-4 w-4" />

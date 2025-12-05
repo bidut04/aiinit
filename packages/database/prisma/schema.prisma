@@ -38,6 +38,7 @@ model Session {
 model OTPVerification {
   id        String   @id @default(cuid())
   email     String
+  phone     String?
   otp       String
   purpose   String
   expiresAt DateTime
@@ -63,6 +64,7 @@ model User {
   phone                 String?                 @unique
   emailVerified         DateTime?
   phoneVerified         Boolean                 @default(false)
+  password String?
   image                 String?
   role                  UserRole                @default(CUSTOMER)
   isActive              Boolean                 @default(true)
@@ -153,7 +155,7 @@ model Restaurant {
   orders            Order[]
   addresses         RestaurantAddress[]
   analytics         RestaurantAnalytics[]
-  owner             RestaurantOwner       @relation(fields: [ownerId], references: [id])
+  owner             RestaurantOwner       @relation(fields: [ownerId], references: [id],onDelete: Cascade )
   reviews           Review[]
   application       RestaurantApplication?
 

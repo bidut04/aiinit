@@ -1,28 +1,36 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@workspace/auth";
 import db from "@workspace/database";
-import { getCachedCategories,invalidateCategoryCache,invalidateRestaurantCache,invalidateMultipleCategoriesCache, setCachedCategories } from "@/app/lib/cache-utils";
+import { 
+  getCachedCategories,
+  invalidateCategoryCache,
+  invalidateRestaurantCache,
+  setCachedCategories 
+} from "@/app/lib/cache-utils";
+
 // GET: Fetch all categories for a restaurant
 export async function GET(
   req: NextRequest,
   { params }: { params: { restaurantId: string } }
 ) {
   try {
-const cachedData=await getCachedCategories(params.restaurantId)
-if(cachedData){
-  return NextResponse.json(cachedData,{
-status:200,headers: {
+    // Check cache first
+    const cachedData = await getCachedCategories(params.restaurantId);
+    if (cachedData) {
+      return NextResponse.json(cachedData, {
+        status: 200,
+        headers: {
           'X-Cache': 'HIT',
-        },})
-}
+        },
+      });
+    }
 
-
+    // Fetch from database
     const categories = await db.category.findMany({
       where: {
         restaurantId: params.restaurantId,
-        isActive: true, // Only fetch active categories
+        isActive: true,
       },
       include: {
         menuItems: {
@@ -38,14 +46,17 @@ status:200,headers: {
         sortOrder: "asc",
       },
     });
- await setCachedCategories(params.restaurantId,categories);
- return NextResponse.json(categories,{
-  status:201,
-  headers:{
-    'X-Cache':'MISS'
-  },
- })
-    return NextResponse.json(categories, { status: 200 });
+
+    // Cache the result
+    await setCachedCategories(params.restaurantId, categories);
+
+    // Return response with cache miss header
+    return NextResponse.json(categories, {
+      status: 200, // ✅ FIXED: Changed from 201 to 200 (GET should return 200, not 201)
+      headers: {
+        'X-Cache': 'MISS',
+      },
+    });
 
   } catch (error) {
     console.error("Error fetching categories:", error);
@@ -55,6 +66,7 @@ status:200,headers: {
     );
   }
 }
+
 // POST: Create a new category
 export async function POST(
   req: NextRequest,
@@ -62,9 +74,8 @@ export async function POST(
 ) {
   try {
     const { restaurantId } = await context.params;
-    console.log(restaurantId);
 
-    // ✅ Check authentication
+    // Check authentication
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
@@ -73,12 +84,11 @@ export async function POST(
         { status: 401 }
       );
     }
-    console.log(session?.user?.id);
 
-    // ✅ FIXED: First get the RestaurantOwner record for this user
+    // Get the RestaurantOwner record for this user
     const restaurantOwner = await db.restaurantOwner.findUnique({
       where: { userId: session.user.id },
-      select: { id: true }
+      select: { id: true },
     });
 
     if (!restaurantOwner) {
@@ -88,11 +98,11 @@ export async function POST(
       );
     }
 
-    // ✅ Now verify the restaurant belongs to this restaurant owner
+    // Verify the restaurant belongs to this restaurant owner
     const restaurant = await db.restaurant.findFirst({
       where: {
         id: restaurantId,
-        ownerId: restaurantOwner.id, // 👈 Use restaurantOwner.id instead of session.user.id
+        ownerId: restaurantOwner.id,
       },
     });
 
@@ -103,7 +113,7 @@ export async function POST(
       );
     }
 
-    // ✅ Parse request body
+    // Parse request body
     const body = await req.json();
 
     if (!body.name) {
@@ -113,7 +123,7 @@ export async function POST(
       );
     }
 
-    // ✅ Get the last sort order
+    // Get the last sort order
     const lastCategory = await db.category.findFirst({
       where: { restaurantId },
       orderBy: { sortOrder: "desc" },
@@ -121,7 +131,7 @@ export async function POST(
 
     const nextSortOrder = lastCategory ? lastCategory.sortOrder + 1 : 0;
 
-    // ✅ Create new category
+    // Create new category
     const category = await db.category.create({
       data: {
         restaurantId,
@@ -133,7 +143,11 @@ export async function POST(
       include: { menuItems: true },
     });
 
-    await invalidateRestaurantCache(restaurantId)
+    // Invalidate caches
+    await Promise.all([
+      invalidateRestaurantCache(restaurantId),
+      invalidateCategoryCache(category.id, restaurantId), // ✅ ADDED: Also invalidate category cache
+    ]);
 
     return NextResponse.json(category, { status: 201 });
 
@@ -149,9 +163,11 @@ export async function POST(
 // PATCH: Update a category
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { restaurantId: string } }
+  context: { params: Promise<{ restaurantId: string }> } // ✅ FIXED: params should be a Promise
 ) {
   try {
+    const { restaurantId } = await context.params; // ✅ FIXED: await params
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
@@ -171,11 +187,24 @@ export async function PATCH(
       );
     }
 
+    // ✅ FIXED: Get RestaurantOwner record first
+    const restaurantOwner = await db.restaurantOwner.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+
+    if (!restaurantOwner) {
+      return NextResponse.json(
+        { error: "Restaurant owner profile not found" },
+        { status: 403 }
+      );
+    }
+
     // Verify ownership
     const category = await db.category.findFirst({
       where: {
         id: categoryId,
-        restaurantId: params.restaurantId,
+        restaurantId: restaurantId,
       },
       include: {
         restaurant: {
@@ -184,7 +213,8 @@ export async function PATCH(
       },
     });
 
-    if (!category || category.restaurant.ownerId !== session.user.id) {
+    // ✅ FIXED: Compare with restaurantOwner.id
+    if (!category || category.restaurant.ownerId !== restaurantOwner.id) {
       return NextResponse.json(
         { error: "Category not found or unauthorized" },
         { status: 403 }
@@ -199,7 +229,13 @@ export async function PATCH(
         menuItems: true,
       },
     });
-await invalidateCategoryCache(categoryId,params.restaurantId)
+
+    // Invalidate caches
+    await Promise.all([
+      invalidateCategoryCache(categoryId, restaurantId),
+      invalidateRestaurantCache(restaurantId), // ✅ ADDED: Also invalidate restaurant cache
+    ]);
+
     return NextResponse.json(updatedCategory);
 
   } catch (error) {
@@ -214,9 +250,11 @@ await invalidateCategoryCache(categoryId,params.restaurantId)
 // DELETE: Delete a category
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { restaurantId: string } }
+  context: { params: Promise<{ restaurantId: string }> } // ✅ FIXED: params should be a Promise
 ) {
   try {
+    const { restaurantId } = await context.params; // ✅ FIXED: await params
+
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
@@ -236,11 +274,24 @@ export async function DELETE(
       );
     }
 
+    // ✅ FIXED: Get RestaurantOwner record first
+    const restaurantOwner = await db.restaurantOwner.findUnique({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+
+    if (!restaurantOwner) {
+      return NextResponse.json(
+        { error: "Restaurant owner profile not found" },
+        { status: 403 }
+      );
+    }
+
     // Verify ownership
     const category = await db.category.findFirst({
       where: {
         id: categoryId,
-        restaurantId: params.restaurantId,
+        restaurantId: restaurantId,
       },
       include: {
         restaurant: {
@@ -249,22 +300,26 @@ export async function DELETE(
       },
     });
 
-    if (!category || category.restaurant.ownerId !== session.user.id) {
+    // ✅ FIXED: Compare with restaurantOwner.id
+    if (!category || category.restaurant.ownerId !== restaurantOwner.id) {
       return NextResponse.json(
         { error: "Category not found or unauthorized" },
         { status: 403 }
       );
     }
 
-    // Soft delete (set isActive to false) or hard delete
+    // Soft delete (set isActive to false)
     await db.category.update({
       where: { id: categoryId },
       data: { isActive: false },
     });
 
-    // Or hard delete:
-    // await db.category.delete({ where: { id: categoryId } });
-await invalidateCategoryCache(categoryId,params.restaurantId)
+    // Invalidate caches
+    await Promise.all([
+      invalidateCategoryCache(categoryId, restaurantId),
+      invalidateRestaurantCache(restaurantId), // ✅ ADDED: Also invalidate restaurant cache
+    ]);
+
     return NextResponse.json(
       { message: "Category deleted successfully" },
       { status: 200 }

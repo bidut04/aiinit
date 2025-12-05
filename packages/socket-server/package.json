@@ -1,0 +1,35 @@
+{
+  "name": "food-ordering-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "exports": "./src/index.ts",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "socket:dev": "pnpm --filter @myapp/socket-server dev",
+    "user:dev": "pnpm --filter @myapp/user-app dev",
+    "restaurant:dev": "pnpm --filter @myapp/restaurant-app dev"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "turbo": "^2.0.0",
+    "typescript": "^5.9.3"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1"
+  }
+}

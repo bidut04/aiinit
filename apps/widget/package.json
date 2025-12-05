@@ -25,6 +25,8 @@
     "@workspace/lib": "workspace:*",
     "@workspace/math": "workspace:*",
     "@workspace/ui": "workspace:*",
+    "@workspace/socket-client": "workspace:*",
+    "@workspace/socket-server": "workspace:*",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "lodash": "^4.17.21",
@@ -37,6 +39,7 @@
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.65.0",
     "react-resizable-panels": "^3.0.6",
+    "swr": "^2.3.6",
     "zod": "^3.25.76"
   },
   "devDependencies": {

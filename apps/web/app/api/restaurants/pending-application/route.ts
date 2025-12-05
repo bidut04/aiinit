@@ -12,6 +12,7 @@ export const GET = async (req: NextRequest) => {
         { status: 401 }
       );
     }
+    
 
       const pendingApplications = await db.restaurantApplication.findMany({
       where: {
