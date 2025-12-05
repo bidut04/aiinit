@@ -53,7 +53,7 @@ import { Providers } from "./providers";
 import { AddToCartModal } from "@/app/components/AddToCartModal";
 import { CartButton } from "@/app/components/CartButton";
 import { SocketProvider } from "./providers/SocketProvider";
-
+import { SessionDebug } from "./components/SessionDebug";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -88,6 +88,7 @@ export default function RootLayout({
           {/* Global Cart Components */}
           <AddToCartModal />
           <CartButton />
+          <SessionDebug />
           </SocketProvider>
         </Providers>
       </body>

@@ -146,7 +146,7 @@ export const authOptions: NextAuthOptions = {
               OR: [
                 credentials.email ? { email: credentials.email } : undefined,
                 credentials.phone ? { phone: credentials.phone } : undefined
-              ].filter(Boolean)
+              ].filter(Boolean) as Array<{ email?: string } | { phone?: string }>
             }
           });
 
@@ -258,7 +258,9 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.email = token.email as string;
+       
         session.user.name = token.name as string;
+         session.user.token = token.id as string;
       }
       return session;
     },

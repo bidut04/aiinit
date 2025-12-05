@@ -127,7 +127,7 @@ function setupSocketListeners() {
       ? 'Your order has been cancelled'
       : 'Order was cancelled by the restaurant';
     
-    toast.info(message, {
+    toast(message, {
       duration: 5000,
       icon: '🚫',
     });
@@ -260,10 +260,13 @@ export function isSocketConnected(): boolean {
  */
 export function getConnectionStatus(): {
   connected: boolean;
-  reconnectAttempts: number;
-  isConnecting: boolean;
 } | null {
-  return socketClient?.getConnectionStatus() ?? null;
+  if (!socketClient) {
+    return null;
+  }
+  return {
+    connected: socketClient.isConnected(),
+  };
 }
 
 /**

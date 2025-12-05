@@ -1,5 +1,5 @@
 {
-  "name": "food-ordering-monorepo",
+  "name": "@workspace/socket-server",
   "version": "1.0.0",
   "private": true,
   "workspaces": [
@@ -11,9 +11,9 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "socket:dev": "pnpm --filter @myapp/socket-server dev",
-    "user:dev": "pnpm --filter @myapp/user-app dev",
-    "restaurant:dev": "pnpm --filter @myapp/restaurant-app dev"
+    "socket:dev": "tsx watch src/index.ts",
+    "user:dev": "pnpm --filter user dev",
+    "restaurant:dev": "pnpm --filter restaurant dev"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
